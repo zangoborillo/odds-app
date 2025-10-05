@@ -1,0 +1,329 @@
+import React, { useState, useEffect } from ‘react’;
+import { TrendingUp, Calendar, Award, AlertCircle } from ‘lucide-react’;
+
+export default function OddsAnalyzer() {
+const [sport, setSport] = useState(‘soccer_italy_serie_a’);
+const [loading, setLoading] = useState(false);
+const [matches, setMatches] = useState([]);
+const [error, setError] = useState(’’);
+const [requestsUsed, setRequestsUsed] = useState(0);
+
+useEffect(() => {
+const stored = parseInt(localStorage.getItem(‘requestsUsed’) || ‘0’);
+setRequestsUsed(stored);
+}, []);
+
+const sports = [
+{ value: ‘soccer_italy_serie_a’, label: ‘Serie A’ },
+{ value: ‘soccer_spain_la_liga’, label: ‘La Liga’ },
+{ value: ‘soccer_epl’, label: ‘Premier League’ },
+{ value: ‘soccer_germany_bundesliga’, label: ‘Bundesliga’ },
+{ value: ‘soccer_france_ligue_one’, label: ‘Ligue 1’ },
+{ value: ‘soccer_uefa_champs_league’, label: ‘Champions League’ }
+];
+
+const analyzeMatches = async () => {
+if (requestsUsed >= 500) {
+setError(‘Hai esaurito i 500 crediti mensili. Riprova il mese prossimo.’);
+return;
+}
+
+```
+setLoading(true);
+setError('');
+setMatches([]);
+
+try {
+  const response = await fetch(`/api/odds?sport=${sport}`);
+  
+  if (!response.ok) {
+    throw new Error(`Errore ${response.status}`);
+  }
+
+  const data = await response.json();
+  
+  if (!data || data.length === 0) {
+    setError('Nessuna partita disponibile. Prova un altro campionato.');
+    return;
+  }
+
+  const analyzed = analyzeOddsChanges(data);
+  setMatches(analyzed);
+  
+  const newCount = requestsUsed + 1;
+  setRequestsUsed(newCount);
+  localStorage.setItem('requestsUsed', newCount.toString());
+
+} catch (err) {
+  setError(`Errore: ${err.message}. Verifica che il server Vercel sia attivo.`);
+} finally {
+  setLoading(false);
+}
+```
+
+};
+
+const analyzeOddsChanges = (data) => {
+const analyzed = [];
+
+```
+for (const match of data) {
+  if (!match.bookmakers || match.bookmakers.length === 0) continue;
+
+  const allOdds = [];
+  
+  for (const bookmaker of match.bookmakers) {
+    const h2hMarket = bookmaker.markets.find(m => m.key === 'h2h');
+    if (h2hMarket) {
+      allOdds.push({
+        bookmaker: bookmaker.title,
+        outcomes: h2hMarket.outcomes
+      });
+    }
+  }
+
+  if (allOdds.length < 2) continue;
+
+  const avgOdds = calculateAverageOdds(allOdds);
+  const variation = calculateVariation(allOdds);
+
+  analyzed.push({
+    match: match,
+    avgOdds: avgOdds,
+    variation: variation,
+    score: calculateScore(variation, avgOdds)
+  });
+}
+
+analyzed.sort((a, b) => b.score - a.score);
+return analyzed.slice(0, 3);
+```
+
+};
+
+const calculateAverageOdds = (allOdds) => {
+const sums = {};
+const counts = {};
+
+```
+for (const bookmaker of allOdds) {
+  for (const outcome of bookmaker.outcomes) {
+    if (!sums[outcome.name]) {
+      sums[outcome.name] = 0;
+      counts[outcome.name] = 0;
+    }
+    sums[outcome.name] += outcome.price;
+    counts[outcome.name]++;
+  }
+}
+
+const avgs = {};
+for (const name in sums) {
+  avgs[name] = sums[name] / counts[name];
+}
+
+return avgs;
+```
+
+};
+
+const calculateVariation = (allOdds) => {
+const variations = {};
+
+```
+for (const bookmaker of allOdds) {
+  for (const outcome of bookmaker.outcomes) {
+    if (!variations[outcome.name]) {
+      variations[outcome.name] = { min: outcome.price, max: outcome.price };
+    }
+    variations[outcome.name].min = Math.min(variations[outcome.name].min, outcome.price);
+    variations[outcome.name].max = Math.max(variations[outcome.name].max, outcome.price);
+  }
+}
+
+const result = {};
+for (const name in variations) {
+  const change = ((variations[name].max - variations[name].min) / variations[name].max) * 100;
+  result[name] = {
+    change: change,
+    min: variations[name].min,
+    max: variations[name].max
+  };
+}
+
+return result;
+```
+
+};
+
+const calculateScore = (variation, avgOdds) => {
+let score = 0;
+for (const outcome in variation) {
+score += variation[outcome].change * avgOdds[outcome];
+}
+return score;
+};
+
+return (
+<div className="min-h-screen bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 p-4">
+<div className="max-w-6xl mx-auto bg-white rounded-3xl shadow-2xl p-6 md:p-8">
+
+```
+    {/* Header */}
+    <div className="text-center mb-8">
+      <h1 className="text-4xl md:text-5xl font-bold text-indigo-600 mb-2 flex items-center justify-center gap-3">
+        <Award className="w-10 h-10" />
+        Analizzatore Quote
+      </h1>
+      <p className="text-gray-600">Trova le migliori opportunità di scommessa</p>
+    </div>
+
+    {/* Info Box */}
+    <div className="bg-blue-50 border-l-4 border-indigo-500 p-4 mb-6 rounded-lg">
+      <p className="text-sm text-gray-700">
+        <strong className="text-indigo-600">ℹ️ Come funziona:</strong> L'app analizza le variazioni delle quote tra bookmaker e suggerisce le 3 partite con le migliori opportunità.
+      </p>
+    </div>
+
+    {/* Controls */}
+    <div className="flex flex-col md:flex-row gap-4 mb-6">
+      <select
+        value={sport}
+        onChange={(e) => setSport(e.target.value)}
+        className="flex-1 px-4 py-3 border-2 border-indigo-500 rounded-xl text-lg focus:outline-none focus:ring-2 focus:ring-indigo-300"
+      >
+        {sports.map(s => (
+          <option key={s.value} value={s.value}>{s.label}</option>
+        ))}
+      </select>
+      
+      <button
+        onClick={analyzeMatches}
+        disabled={loading}
+        className="px-8 py-3 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 disabled:bg-gray-400 transition-all duration-300 hover:scale-105 shadow-lg flex items-center justify-center gap-2"
+      >
+        <TrendingUp className="w-5 h-5" />
+        {loading ? 'Analizzando...' : 'Analizza Partite'}
+      </button>
+    </div>
+
+    {/* API Usage */}
+    <div className="text-center mb-6 p-3 bg-orange-50 rounded-lg">
+      <p className="text-orange-700 font-bold">
+        Richieste rimanenti: {500 - requestsUsed} / 500
+      </p>
+    </div>
+
+    {/* Loading */}
+    {loading && (
+      <div className="text-center py-12">
+        <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mb-4"></div>
+        <p className="text-indigo-600 text-lg">Caricamento dati...</p>
+      </div>
+    )}
+
+    {/* Error */}
+    {error && (
+      <div className="bg-red-50 border-2 border-red-300 rounded-xl p-6 text-center">
+        <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-3" />
+        <p className="text-red-700">{error}</p>
+      </div>
+    )}
+
+    {/* Results */}
+    {matches.length > 0 && (
+      <div className="space-y-6">
+        {matches.map((item, index) => {
+          const match = item.match;
+          const homeTeam = match.home_team;
+          const awayTeam = match.away_team;
+          const date = new Date(match.commence_time).toLocaleString('it-IT');
+
+          const bestOutcome = Object.keys(item.variation).reduce((a, b) => 
+            item.variation[a].change > item.variation[b].change ? a : b
+          );
+
+          const changePercent = item.variation[bestOutcome].change.toFixed(1);
+          const isStrong = item.variation[bestOutcome].change > 10;
+
+          let outcomeText = bestOutcome === homeTeam ? '1 (Vittoria Casa)' :
+                          bestOutcome === awayTeam ? '2 (Vittoria Trasferta)' : 'X (Pareggio)';
+
+          return (
+            <div key={index} className="bg-gradient-to-br from-white to-blue-50 border-2 border-blue-200 rounded-2xl p-6 hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
+              
+              {/* Match Header */}
+              <div className="flex justify-between items-start mb-4 pb-4 border-b-2 border-blue-200">
+                <div>
+                  <h3 className="text-xl md:text-2xl font-bold text-gray-800">
+                    {homeTeam} vs {awayTeam}
+                  </h3>
+                  <p className="text-gray-600 text-sm flex items-center gap-2 mt-1">
+                    <Calendar className="w-4 h-4" />
+                    {date}
+                  </p>
+                </div>
+                <span className={`px-4 py-2 rounded-full text-sm font-bold ${isStrong ? 'bg-green-500 text-white' : 'bg-orange-500 text-white'}`}>
+                  Top #{index + 1}
+                </span>
+              </div>
+
+              {/* Odds */}
+              <div className="grid grid-cols-3 gap-3 mb-4">
+                {Object.entries(item.avgOdds).map(([outcome, avg]) => {
+                  const isRecommended = outcome === bestOutcome;
+                  const change = item.variation[outcome].change;
+                  
+                  let label = outcome === homeTeam ? '1️⃣ Casa' :
+                            outcome === awayTeam ? '2️⃣ Trasferta' : '❌ Pareggio';
+
+                  return (
+                    <div key={outcome} className={`p-4 rounded-xl text-center ${isRecommended ? 'bg-green-100 border-2 border-green-500' : 'bg-white border-2 border-gray-200'}`}>
+                      <p className="text-xs text-gray-600 mb-1">{label}</p>
+                      <p className="text-2xl font-bold text-gray-800">{avg.toFixed(2)}</p>
+                      <p className="text-xs font-bold text-green-600 mt-1">
+                        Var: {change.toFixed(1)}%
+                      </p>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Advice */}
+              <div className="bg-green-50 border-2 border-green-500 rounded-xl p-4">
+                <p className="font-bold text-green-700 mb-2 text-lg">💡 Consiglio</p>
+                <p className="text-gray-700 leading-relaxed">
+                  <strong>Punta su: {outcomeText}</strong><br />
+                  Quota media: <strong>{item.avgOdds[bestOutcome].toFixed(2)}</strong><br />
+                  Variazione: <strong>{changePercent}%</strong><br />
+                  <span className="text-sm">
+                    Alta variazione = disaccordo tra bookmaker = opportunità di valore
+                  </span>
+                </p>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    )}
+
+    {/* Setup Instructions */}
+    {!loading && matches.length === 0 && !error && (
+      <div className="bg-yellow-50 border-2 border-yellow-400 rounded-xl p-6 mt-6">
+        <h3 className="font-bold text-yellow-800 mb-3 text-lg">📋 Setup Vercel</h3>
+        <ol className="list-decimal list-inside space-y-2 text-sm text-gray-700">
+          <li>Crea una cartella sul tuo PC (es. "odds-app")</li>
+          <li>Salva questo file React come <code className="bg-yellow-200 px-2 py-1 rounded">index.html</code></li>
+          <li>Crea una cartella <code className="bg-yellow-200 px-2 py-1 rounded">api</code></li>
+          <li>Dentro <code className="bg-yellow-200 px-2 py-1 rounded">api</code> crea il file <code className="bg-yellow-200 px-2 py-1 rounded">odds.js</code> (te lo fornisco dopo)</li>
+          <li>Vai su <a href="https://vercel.com" target="_blank" className="text-indigo-600 underline">vercel.com</a> e fai il deploy</li>
+        </ol>
+        <p className="mt-4 text-yellow-800 font-bold">Dimmi "DAMMI IL FILE API" e ti do il codice del server! 🚀</p>
+      </div>
+    )}
+  </div>
+</div>
+```
+
+);
+}
