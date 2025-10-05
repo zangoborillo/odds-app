@@ -1,329 +1,532 @@
-import React, { useState, useEffect } from ‘react’;
-import { TrendingUp, Calendar, Award, AlertCircle } from ‘lucide-react’;
+<!DOCTYPE html>
 
-export default function OddsAnalyzer() {
-const [sport, setSport] = useState(‘soccer_italy_serie_a’);
-const [loading, setLoading] = useState(false);
-const [matches, setMatches] = useState([]);
-const [error, setError] = useState(’’);
-const [requestsUsed, setRequestsUsed] = useState(0);
-
-useEffect(() => {
-const stored = parseInt(localStorage.getItem(‘requestsUsed’) || ‘0’);
-setRequestsUsed(stored);
-}, []);
-
-const sports = [
-{ value: ‘soccer_italy_serie_a’, label: ‘Serie A’ },
-{ value: ‘soccer_spain_la_liga’, label: ‘La Liga’ },
-{ value: ‘soccer_epl’, label: ‘Premier League’ },
-{ value: ‘soccer_germany_bundesliga’, label: ‘Bundesliga’ },
-{ value: ‘soccer_france_ligue_one’, label: ‘Ligue 1’ },
-{ value: ‘soccer_uefa_champs_league’, label: ‘Champions League’ }
-];
-
-const analyzeMatches = async () => {
-if (requestsUsed >= 500) {
-setError(‘Hai esaurito i 500 crediti mensili. Riprova il mese prossimo.’);
-return;
-}
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Analizzatore Quote Sportive</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
 
 ```
-setLoading(true);
-setError('');
-setMatches([]);
-
-try {
-  const response = await fetch(`/api/odds?sport=${sport}`);
-  
-  if (!response.ok) {
-    throw new Error(`Errore ${response.status}`);
-  }
-
-  const data = await response.json();
-  
-  if (!data || data.length === 0) {
-    setError('Nessuna partita disponibile. Prova un altro campionato.');
-    return;
-  }
-
-  const analyzed = analyzeOddsChanges(data);
-  setMatches(analyzed);
-  
-  const newCount = requestsUsed + 1;
-  setRequestsUsed(newCount);
-  localStorage.setItem('requestsUsed', newCount.toString());
-
-} catch (err) {
-  setError(`Errore: ${err.message}. Verifica che il server Vercel sia attivo.`);
-} finally {
-  setLoading(false);
-}
-```
-
-};
-
-const analyzeOddsChanges = (data) => {
-const analyzed = [];
-
-```
-for (const match of data) {
-  if (!match.bookmakers || match.bookmakers.length === 0) continue;
-
-  const allOdds = [];
-  
-  for (const bookmaker of match.bookmakers) {
-    const h2hMarket = bookmaker.markets.find(m => m.key === 'h2h');
-    if (h2hMarket) {
-      allOdds.push({
-        bookmaker: bookmaker.title,
-        outcomes: h2hMarket.outcomes
-      });
+    body {
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        min-height: 100vh;
+        padding: 20px;
     }
-  }
 
-  if (allOdds.length < 2) continue;
-
-  const avgOdds = calculateAverageOdds(allOdds);
-  const variation = calculateVariation(allOdds);
-
-  analyzed.push({
-    match: match,
-    avgOdds: avgOdds,
-    variation: variation,
-    score: calculateScore(variation, avgOdds)
-  });
-}
-
-analyzed.sort((a, b) => b.score - a.score);
-return analyzed.slice(0, 3);
-```
-
-};
-
-const calculateAverageOdds = (allOdds) => {
-const sums = {};
-const counts = {};
-
-```
-for (const bookmaker of allOdds) {
-  for (const outcome of bookmaker.outcomes) {
-    if (!sums[outcome.name]) {
-      sums[outcome.name] = 0;
-      counts[outcome.name] = 0;
+    .container {
+        max-width: 1200px;
+        margin: 0 auto;
+        background: white;
+        border-radius: 20px;
+        box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        padding: 20px;
     }
-    sums[outcome.name] += outcome.price;
-    counts[outcome.name]++;
-  }
-}
 
-const avgs = {};
-for (const name in sums) {
-  avgs[name] = sums[name] / counts[name];
-}
-
-return avgs;
-```
-
-};
-
-const calculateVariation = (allOdds) => {
-const variations = {};
-
-```
-for (const bookmaker of allOdds) {
-  for (const outcome of bookmaker.outcomes) {
-    if (!variations[outcome.name]) {
-      variations[outcome.name] = { min: outcome.price, max: outcome.price };
+    h1 {
+        color: #667eea;
+        text-align: center;
+        margin-bottom: 10px;
+        font-size: 2em;
     }
-    variations[outcome.name].min = Math.min(variations[outcome.name].min, outcome.price);
-    variations[outcome.name].max = Math.max(variations[outcome.name].max, outcome.price);
-  }
-}
 
-const result = {};
-for (const name in variations) {
-  const change = ((variations[name].max - variations[name].min) / variations[name].max) * 100;
-  result[name] = {
-    change: change,
-    min: variations[name].min,
-    max: variations[name].max
-  };
-}
+    .subtitle {
+        text-align: center;
+        color: #666;
+        margin-bottom: 20px;
+        font-size: 0.9em;
+    }
 
-return result;
+    .info-box {
+        background: #f0f4ff;
+        padding: 15px;
+        border-radius: 10px;
+        margin-bottom: 20px;
+        border-left: 5px solid #667eea;
+        font-size: 0.9em;
+    }
+
+    .controls {
+        display: flex;
+        gap: 10px;
+        margin-bottom: 20px;
+        flex-wrap: wrap;
+    }
+
+    select, button {
+        padding: 12px 20px;
+        border: 2px solid #667eea;
+        border-radius: 10px;
+        font-size: 16px;
+        cursor: pointer;
+    }
+
+    select {
+        flex: 1;
+        min-width: 200px;
+        background: white;
+    }
+
+    button {
+        background: #667eea;
+        color: white;
+        font-weight: bold;
+        min-width: 150px;
+        transition: all 0.3s;
+    }
+
+    button:hover {
+        background: #5568d3;
+        transform: translateY(-2px);
+    }
+
+    button:disabled {
+        background: #ccc;
+        cursor: not-allowed;
+        transform: none;
+    }
+
+    .api-usage {
+        text-align: center;
+        padding: 10px;
+        background: #fff7ed;
+        border-radius: 10px;
+        color: #ea580c;
+        font-weight: bold;
+        margin-bottom: 20px;
+        font-size: 0.9em;
+    }
+
+    .loading {
+        text-align: center;
+        padding: 40px;
+        color: #667eea;
+    }
+
+    .spinner {
+        border: 4px solid #f3f3f3;
+        border-top: 4px solid #667eea;
+        border-radius: 50%;
+        width: 40px;
+        height: 40px;
+        animation: spin 1s linear infinite;
+        margin: 20px auto;
+    }
+
+    @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
+
+    .error {
+        background: #fee;
+        border: 2px solid #f66;
+        border-radius: 10px;
+        padding: 20px;
+        color: #c33;
+        text-align: center;
+        margin: 20px 0;
+    }
+
+    .match-card {
+        background: linear-gradient(135deg, #ffffff 0%, #f8f9ff 100%);
+        border: 2px solid #e0e7ff;
+        border-radius: 15px;
+        padding: 20px;
+        margin-bottom: 20px;
+        transition: all 0.3s;
+    }
+
+    .match-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 10px 30px rgba(102, 126, 234, 0.2);
+    }
+
+    .match-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: start;
+        margin-bottom: 15px;
+        padding-bottom: 15px;
+        border-bottom: 2px solid #e0e7ff;
+        flex-wrap: wrap;
+        gap: 10px;
+    }
+
+    .match-teams {
+        font-size: 1.3em;
+        font-weight: bold;
+        color: #333;
+    }
+
+    .match-date {
+        color: #666;
+        font-size: 0.85em;
+        margin-top: 5px;
+    }
+
+    .badge {
+        padding: 8px 15px;
+        border-radius: 20px;
+        font-weight: bold;
+        font-size: 0.9em;
+        white-space: nowrap;
+    }
+
+    .badge-strong {
+        background: #10b981;
+        color: white;
+    }
+
+    .badge-moderate {
+        background: #f59e0b;
+        color: white;
+    }
+
+    .odds-row {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+        gap: 10px;
+        margin: 15px 0;
+    }
+
+    .odd-item {
+        background: white;
+        padding: 12px;
+        border-radius: 8px;
+        border: 2px solid #e0e7ff;
+        text-align: center;
+    }
+
+    .odd-item.recommended {
+        border-color: #10b981;
+        background: #f0fdf4;
+    }
+
+    .odd-label {
+        font-size: 0.8em;
+        color: #666;
+        margin-bottom: 5px;
+    }
+
+    .odd-value {
+        font-size: 1.5em;
+        font-weight: bold;
+        color: #333;
+    }
+
+    .odd-change {
+        font-size: 0.85em;
+        margin-top: 5px;
+        font-weight: bold;
+        color: #10b981;
+    }
+
+    .advice {
+        background: #f0fdf4;
+        border: 2px solid #10b981;
+        border-radius: 10px;
+        padding: 15px;
+        margin-top: 15px;
+    }
+
+    .advice-title {
+        color: #10b981;
+        font-weight: bold;
+        margin-bottom: 8px;
+        font-size: 1.1em;
+    }
+
+    .advice-text {
+        color: #333;
+        line-height: 1.6;
+        font-size: 0.9em;
+    }
+
+    @media (max-width: 768px) {
+        .container {
+            padding: 15px;
+        }
+        
+        h1 {
+            font-size: 1.5em;
+        }
+        
+        .match-teams {
+            font-size: 1.1em;
+        }
+        
+        .controls {
+            flex-direction: column;
+        }
+        
+        select, button {
+            width: 100%;
+        }
+    }
+</style>
 ```
 
-};
-
-const calculateScore = (variation, avgOdds) => {
-let score = 0;
-for (const outcome in variation) {
-score += variation[outcome].change * avgOdds[outcome];
-}
-return score;
-};
-
-return (
-<div className="min-h-screen bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 p-4">
-<div className="max-w-6xl mx-auto bg-white rounded-3xl shadow-2xl p-6 md:p-8">
+</head>
+<body>
+    <div class="container">
+        <h1>⚽ Analizzatore Quote Sportive</h1>
+        <p class="subtitle">Trova le migliori opportunità di scommessa</p>
 
 ```
-    {/* Header */}
-    <div className="text-center mb-8">
-      <h1 className="text-4xl md:text-5xl font-bold text-indigo-600 mb-2 flex items-center justify-center gap-3">
-        <Award className="w-10 h-10" />
-        Analizzatore Quote
-      </h1>
-      <p className="text-gray-600">Trova le migliori opportunità di scommessa</p>
+    <div class="info-box">
+        <strong>ℹ️ Come funziona:</strong> L'app analizza le variazioni delle quote tra bookmaker e suggerisce le 3 partite con le migliori opportunità.
     </div>
 
-    {/* Info Box */}
-    <div className="bg-blue-50 border-l-4 border-indigo-500 p-4 mb-6 rounded-lg">
-      <p className="text-sm text-gray-700">
-        <strong className="text-indigo-600">ℹ️ Come funziona:</strong> L'app analizza le variazioni delle quote tra bookmaker e suggerisce le 3 partite con le migliori opportunità.
-      </p>
+    <div class="controls">
+        <select id="sportSelect">
+            <option value="soccer_italy_serie_a">Serie A</option>
+            <option value="soccer_spain_la_liga">La Liga</option>
+            <option value="soccer_epl">Premier League</option>
+            <option value="soccer_germany_bundesliga">Bundesliga</option>
+            <option value="soccer_france_ligue_one">Ligue 1</option>
+            <option value="soccer_uefa_champs_league">Champions League</option>
+        </select>
+        <button id="analyzeBtn" onclick="analyzeMatches()">🔍 Analizza Partite</button>
     </div>
 
-    {/* Controls */}
-    <div className="flex flex-col md:flex-row gap-4 mb-6">
-      <select
-        value={sport}
-        onChange={(e) => setSport(e.target.value)}
-        className="flex-1 px-4 py-3 border-2 border-indigo-500 rounded-xl text-lg focus:outline-none focus:ring-2 focus:ring-indigo-300"
-      >
-        {sports.map(s => (
-          <option key={s.value} value={s.value}>{s.label}</option>
-        ))}
-      </select>
-      
-      <button
-        onClick={analyzeMatches}
-        disabled={loading}
-        className="px-8 py-3 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 disabled:bg-gray-400 transition-all duration-300 hover:scale-105 shadow-lg flex items-center justify-center gap-2"
-      >
-        <TrendingUp className="w-5 h-5" />
-        {loading ? 'Analizzando...' : 'Analizza Partite'}
-      </button>
+    <div id="apiUsage" class="api-usage">
+        Richieste rimanenti: <span id="remainingRequests">500</span> / 500
     </div>
 
-    {/* API Usage */}
-    <div className="text-center mb-6 p-3 bg-orange-50 rounded-lg">
-      <p className="text-orange-700 font-bold">
-        Richieste rimanenti: {500 - requestsUsed} / 500
-      </p>
-    </div>
-
-    {/* Loading */}
-    {loading && (
-      <div className="text-center py-12">
-        <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mb-4"></div>
-        <p className="text-indigo-600 text-lg">Caricamento dati...</p>
-      </div>
-    )}
-
-    {/* Error */}
-    {error && (
-      <div className="bg-red-50 border-2 border-red-300 rounded-xl p-6 text-center">
-        <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-3" />
-        <p className="text-red-700">{error}</p>
-      </div>
-    )}
-
-    {/* Results */}
-    {matches.length > 0 && (
-      <div className="space-y-6">
-        {matches.map((item, index) => {
-          const match = item.match;
-          const homeTeam = match.home_team;
-          const awayTeam = match.away_team;
-          const date = new Date(match.commence_time).toLocaleString('it-IT');
-
-          const bestOutcome = Object.keys(item.variation).reduce((a, b) => 
-            item.variation[a].change > item.variation[b].change ? a : b
-          );
-
-          const changePercent = item.variation[bestOutcome].change.toFixed(1);
-          const isStrong = item.variation[bestOutcome].change > 10;
-
-          let outcomeText = bestOutcome === homeTeam ? '1 (Vittoria Casa)' :
-                          bestOutcome === awayTeam ? '2 (Vittoria Trasferta)' : 'X (Pareggio)';
-
-          return (
-            <div key={index} className="bg-gradient-to-br from-white to-blue-50 border-2 border-blue-200 rounded-2xl p-6 hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
-              
-              {/* Match Header */}
-              <div className="flex justify-between items-start mb-4 pb-4 border-b-2 border-blue-200">
-                <div>
-                  <h3 className="text-xl md:text-2xl font-bold text-gray-800">
-                    {homeTeam} vs {awayTeam}
-                  </h3>
-                  <p className="text-gray-600 text-sm flex items-center gap-2 mt-1">
-                    <Calendar className="w-4 h-4" />
-                    {date}
-                  </p>
-                </div>
-                <span className={`px-4 py-2 rounded-full text-sm font-bold ${isStrong ? 'bg-green-500 text-white' : 'bg-orange-500 text-white'}`}>
-                  Top #{index + 1}
-                </span>
-              </div>
-
-              {/* Odds */}
-              <div className="grid grid-cols-3 gap-3 mb-4">
-                {Object.entries(item.avgOdds).map(([outcome, avg]) => {
-                  const isRecommended = outcome === bestOutcome;
-                  const change = item.variation[outcome].change;
-                  
-                  let label = outcome === homeTeam ? '1️⃣ Casa' :
-                            outcome === awayTeam ? '2️⃣ Trasferta' : '❌ Pareggio';
-
-                  return (
-                    <div key={outcome} className={`p-4 rounded-xl text-center ${isRecommended ? 'bg-green-100 border-2 border-green-500' : 'bg-white border-2 border-gray-200'}`}>
-                      <p className="text-xs text-gray-600 mb-1">{label}</p>
-                      <p className="text-2xl font-bold text-gray-800">{avg.toFixed(2)}</p>
-                      <p className="text-xs font-bold text-green-600 mt-1">
-                        Var: {change.toFixed(1)}%
-                      </p>
-                    </div>
-                  );
-                })}
-              </div>
-
-              {/* Advice */}
-              <div className="bg-green-50 border-2 border-green-500 rounded-xl p-4">
-                <p className="font-bold text-green-700 mb-2 text-lg">💡 Consiglio</p>
-                <p className="text-gray-700 leading-relaxed">
-                  <strong>Punta su: {outcomeText}</strong><br />
-                  Quota media: <strong>{item.avgOdds[bestOutcome].toFixed(2)}</strong><br />
-                  Variazione: <strong>{changePercent}%</strong><br />
-                  <span className="text-sm">
-                    Alta variazione = disaccordo tra bookmaker = opportunità di valore
-                  </span>
-                </p>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    )}
-
-    {/* Setup Instructions */}
-    {!loading && matches.length === 0 && !error && (
-      <div className="bg-yellow-50 border-2 border-yellow-400 rounded-xl p-6 mt-6">
-        <h3 className="font-bold text-yellow-800 mb-3 text-lg">📋 Setup Vercel</h3>
-        <ol className="list-decimal list-inside space-y-2 text-sm text-gray-700">
-          <li>Crea una cartella sul tuo PC (es. "odds-app")</li>
-          <li>Salva questo file React come <code className="bg-yellow-200 px-2 py-1 rounded">index.html</code></li>
-          <li>Crea una cartella <code className="bg-yellow-200 px-2 py-1 rounded">api</code></li>
-          <li>Dentro <code className="bg-yellow-200 px-2 py-1 rounded">api</code> crea il file <code className="bg-yellow-200 px-2 py-1 rounded">odds.js</code> (te lo fornisco dopo)</li>
-          <li>Vai su <a href="https://vercel.com" target="_blank" className="text-indigo-600 underline">vercel.com</a> e fai il deploy</li>
-        </ol>
-        <p className="mt-4 text-yellow-800 font-bold">Dimmi "DAMMI IL FILE API" e ti do il codice del server! 🚀</p>
-      </div>
-    )}
-  </div>
+    <div id="results"></div>
 </div>
+
+<script>
+    let requestsUsed = parseInt(localStorage.getItem('requestsUsed') || '0');
+    
+    function updateApiUsage() {
+        document.getElementById('remainingRequests').textContent = 500 - requestsUsed;
+    }
+
+    async function analyzeMatches() {
+        if (requestsUsed >= 500) {
+            showError('Hai esaurito i 500 crediti mensili. Riprova il mese prossimo.');
+            return;
+        }
+
+        const sport = document.getElementById('sportSelect').value;
+        const btn = document.getElementById('analyzeBtn');
+        const results = document.getElementById('results');
+
+        btn.disabled = true;
+        results.innerHTML = '<div class="loading"><div class="spinner"></div><p>Caricamento dati...</p></div>';
+
+        try {
+            const response = await fetch(`/api/odds?sport=${sport}`);
+            
+            if (!response.ok) {
+                throw new Error(`Errore ${response.status}`);
+            }
+
+            const data = await response.json();
+            
+            if (!data || data.length === 0) {
+                showError('Nessuna partita disponibile. Prova un altro campionato.');
+                return;
+            }
+
+            const analyzed = analyzeOddsChanges(data);
+            displayRecommendations(analyzed);
+            
+            requestsUsed++;
+            localStorage.setItem('requestsUsed', requestsUsed.toString());
+            updateApiUsage();
+
+        } catch (error) {
+            showError(`Errore: ${error.message}. Verifica che il server sia attivo.`);
+        } finally {
+            btn.disabled = false;
+        }
+    }
+
+    function analyzeOddsChanges(matches) {
+        const analyzed = [];
+
+        for (const match of matches) {
+            if (!match.bookmakers || match.bookmakers.length === 0) continue;
+
+            const allOdds = [];
+            
+            for (const bookmaker of match.bookmakers) {
+                const h2hMarket = bookmaker.markets.find(m => m.key === 'h2h');
+                if (h2hMarket) {
+                    allOdds.push({
+                        bookmaker: bookmaker.title,
+                        outcomes: h2hMarket.outcomes
+                    });
+                }
+            }
+
+            if (allOdds.length < 2) continue;
+
+            const avgOdds = calculateAverageOdds(allOdds);
+            const variation = calculateVariation(allOdds);
+
+            analyzed.push({
+                match: match,
+                avgOdds: avgOdds,
+                variation: variation,
+                score: calculateScore(variation, avgOdds)
+            });
+        }
+
+        analyzed.sort((a, b) => b.score - a.score);
+        return analyzed.slice(0, 3);
+    }
+
+    function calculateAverageOdds(allOdds) {
+        const sums = {};
+        const counts = {};
+
+        for (const bookmaker of allOdds) {
+            for (const outcome of bookmaker.outcomes) {
+                if (!sums[outcome.name]) {
+                    sums[outcome.name] = 0;
+                    counts[outcome.name] = 0;
+                }
+                sums[outcome.name] += outcome.price;
+                counts[outcome.name]++;
+            }
+        }
+
+        const avgs = {};
+        for (const name in sums) {
+            avgs[name] = sums[name] / counts[name];
+        }
+
+        return avgs;
+    }
+
+    function calculateVariation(allOdds) {
+        const variations = {};
+
+        for (const bookmaker of allOdds) {
+            for (const outcome of bookmaker.outcomes) {
+                if (!variations[outcome.name]) {
+                    variations[outcome.name] = { min: outcome.price, max: outcome.price };
+                }
+                variations[outcome.name].min = Math.min(variations[outcome.name].min, outcome.price);
+                variations[outcome.name].max = Math.max(variations[outcome.name].max, outcome.price);
+            }
+        }
+
+        const result = {};
+        for (const name in variations) {
+            const change = ((variations[name].max - variations[name].min) / variations[name].max) * 100;
+            result[name] = {
+                change: change,
+                min: variations[name].min,
+                max: variations[name].max
+            };
+        }
+
+        return result;
+    }
+
+    function calculateScore(variation, avgOdds) {
+        let score = 0;
+        for (const outcome in variation) {
+            score += variation[outcome].change * avgOdds[outcome];
+        }
+        return score;
+    }
+
+    function displayRecommendations(matches) {
+        const results = document.getElementById('results');
+        
+        if (matches.length === 0) {
+            results.innerHTML = '<div class="error">Nessuna opportunità trovata.</div>';
+            return;
+        }
+
+        let html = '';
+
+        matches.forEach((item, index) => {
+            const match = item.match;
+            const homeTeam = match.home_team;
+            const awayTeam = match.away_team;
+            const date = new Date(match.commence_time).toLocaleString('it-IT');
+
+            const bestOutcome = Object.keys(item.variation).reduce((a, b) => 
+                item.variation[a].change > item.variation[b].change ? a : b
+            );
+
+            const changePercent = item.variation[bestOutcome].change.toFixed(1);
+            const isStrong = item.variation[bestOutcome].change > 10;
+
+            let outcomeText = bestOutcome === homeTeam ? '1 (Vittoria Casa)' :
+                            bestOutcome === awayTeam ? '2 (Vittoria Trasferta)' : 'X (Pareggio)';
+
+            html += `
+                <div class="match-card">
+                    <div class="match-header">
+                        <div>
+                            <div class="match-teams">${homeTeam} vs ${awayTeam}</div>
+                            <div class="match-date">📅 ${date}</div>
+                        </div>
+                        <span class="badge ${isStrong ? 'badge-strong' : 'badge-moderate'}">
+                            Top #${index + 1}
+                        </span>
+                    </div>
+
+                    <div class="odds-row">
+            `;
+
+            for (const outcome in item.avgOdds) {
+                const isRecommended = outcome === bestOutcome;
+                const change = item.variation[outcome].change;
+                const avgOdd = item.avgOdds[outcome].toFixed(2);
+                
+                let label = outcome === homeTeam ? '1️⃣ Casa' :
+                          outcome === awayTeam ? '2️⃣ Trasferta' : '❌ Pareggio';
+
+                html += `
+                    <div class="odd-item ${isRecommended ? 'recommended' : ''}">
+                        <div class="odd-label">${label}</div>
+                        <div class="odd-value">${avgOdd}</div>
+                        <div class="odd-change">Var: ${change.toFixed(1)}%</div>
+                    </div>
+                `;
+            }
+
+            html += `
+                    </div>
+
+                    <div class="advice">
+                        <div class="advice-title">💡 Consiglio</div>
+                        <div class="advice-text">
+                            <strong>Punta su: ${outcomeText}</strong><br>
+                            Quota media: <strong>${item.avgOdds[bestOutcome].toFixed(2)}</strong><br>
+                            Variazione: <strong>${changePercent}%</strong><br>
+                            <span style="font-size: 0.85em;">Alta variazione = disaccordo tra bookmaker = opportunità di valore</span>
+                        </div>
+                    </div>
+                </div>
+            `;
+        });
+
+        results.innerHTML = html;
+    }
+
+    function showError(message) {
+        document.getElementById('results').innerHTML = `<div class="error">${message}</div>`;
+    }
+
+    updateApiUsage();
+</script>
 ```
 
-);
-}
+</body>
+</html>
