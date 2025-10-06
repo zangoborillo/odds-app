@@ -7,15 +7,14 @@ export default async function handler(req, res) {
   }
 
   try {
-    // Data da 3 giorni fa per storico
-    const date = new Date();
-    date.setDate(date.getDate() - 3);
-    const dateFrom = date.toISOString();
+    // Calcola timestamp in secondi (non ISO string!)
+    const now = Math.floor(Date.now() / 1000);
+    const threeDaysAgo = now - (3 * 24 * 60 * 60); // 3 giorni fa in secondi
     
-    // URL endpoint historical
-    const url = `https://api.the-odds-api.com/v4/historical/sports/${sport}/odds?apiKey=${API_KEY}&regions=eu&markets=h2h&oddsFormat=decimal&dateFrom=${dateFrom}&bookmakers=pinnacle`;
+    // URL corretto con timestamp in secondi
+    const url = `https://api.the-odds-api.com/v4/historical/sports/${sport}/odds?apiKey=${API_KEY}&regions=eu&markets=h2h&oddsFormat=decimal&date=${threeDaysAgo}&bookmakers=pinnacle`;
     
-    console.log('Chiamata API Historical:', url);
+    console.log('Chiamata API Historical con timestamp:', threeDaysAgo);
     
     const response = await fetch(url);
     
@@ -27,9 +26,8 @@ export default async function handler(req, res) {
 
     const data = await response.json();
     
-    console.log('Dati ricevuti:', data.length, 'partite');
+    console.log('Dati ricevuti:', data.length || 0, 'eventi');
     
-    // Headers CORS
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -40,7 +38,7 @@ export default async function handler(req, res) {
     console.error('Errore server:', error);
     return res.status(500).json({ 
       error: error.message,
-      details: 'Verifica che l\'API key abbia accesso all\'endpoint historical'
+      details: 'Problema con endpoint historical - potrebbe richiedere un piano API specifico'
     });
   }
 }
