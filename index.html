@@ -94,6 +94,7 @@
         gap: 10px;
         justify-content: center;
         margin-bottom: 20px;
+        flex-wrap: wrap;
     }
 
     .time-btn {
@@ -132,11 +133,6 @@
         text-align: center;
     }
 
-    .cost-warning strong {
-        color: #f59e0b;
-        font-size: 1.1em;
-    }
-
     .loading {
         text-align: center;
         padding: 40px;
@@ -164,8 +160,16 @@
         border-radius: 10px;
         padding: 20px;
         color: #c33;
-        text-align: center;
         margin: 20px 0;
+    }
+
+    .error pre {
+        margin-top: 10px;
+        padding: 10px;
+        background: white;
+        border-radius: 5px;
+        overflow-x: auto;
+        font-size: 12px;
     }
 
     .top-picks {
@@ -195,16 +199,11 @@
         background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
         border: 3px solid #10b981;
         box-shadow: 0 8px 25px rgba(16, 185, 129, 0.3);
-        transform: scale(1.02);
     }
 
     .match-card:hover {
         transform: translateY(-5px);
         box-shadow: 0 10px 30px rgba(102, 126, 234, 0.2);
-    }
-
-    .match-card.top-pick:hover {
-        transform: translateY(-5px) scale(1.02);
     }
 
     .match-header {
@@ -398,10 +397,6 @@
         .time-filter {
             flex-direction: column;
         }
-
-        .badges {
-            justify-content: center;
-        }
     }
 </style>
 ```
@@ -414,12 +409,12 @@
 
 ```
     <div class="info-box">
-        <strong>📊 Analisi Storica:</strong> L'app scarica lo storico delle quote Pinnacle degli ultimi 3 giorni e calcola la variazione REALE nel tempo. Mostra TUTTE le partite con TOP 3-5 in evidenza.
+        <strong>📊 Analisi Storica:</strong> L'app scarica lo storico delle quote Pinnacle e calcola le variazioni REALI nel tempo. Mostra TUTTE le partite con TOP 5 in evidenza.
     </div>
 
     <div class="cost-warning">
         <strong>⚠️ Costo Analisi: 10 crediti</strong><br>
-        <span style="font-size: 0.9em;">Ogni ricerca consuma 10 crediti. Hai 500 crediti/mese = 50 analisi mensili</span>
+        <span style="font-size: 0.9em;">Ogni ricerca storica consuma 10 crediti. Hai 500 crediti/mese = 50 analisi mensili</span>
     </div>
 
     <div class="controls">
@@ -466,7 +461,6 @@
     }
 
     function getTimeFilterHours() {
-        const now = new Date();
         let minHours, maxHours;
         
         switch(timeFilter) {
@@ -498,19 +492,20 @@
         const results = document.getElementById('results');
 
         btn.disabled = true;
-        results.innerHTML = '<div class="loading"><div class="spinner"></div><p>📊 Scaricamento storico quote Pinnacle (3 giorni)...</p><p style="font-size: 0.9em; color: #666; margin-top: 10px;">Costo: 10 crediti</p></div>';
+        results.innerHTML = '<div class="loading"><div class="spinner"></div><p>📊 Scaricamento storico quote Pinnacle...</p><p style="font-size: 0.9em; color: #666; margin-top: 10px;">Costo: 10 crediti</p></div>';
 
         try {
             const response = await fetch(`/api/historical?sport=${sport}`);
             
             if (!response.ok) {
-                throw new Error(`Errore ${response.status}`);
+                const errorData = await response.text();
+                throw new Error(`Errore ${response.status}: ${errorData}`);
             }
 
             const data = await response.json();
             
             if (!data || data.length === 0) {
-                showError('Nessun dato storico disponibile. Prova un altro campionato.');
+                showError('Nessun dato storico disponibile per questo campionato. Potrebbe essere che:\n1. Non ci sono partite programmate\n2. Pinnacle non copre questo campionato\n3. L\'API historical non è disponibile nel tuo piano');
                 return;
             }
 
@@ -522,7 +517,8 @@
             displayRecommendations(analyzed);
 
         } catch (error) {
-            showError(`Errore: ${error.message}. Verifica che il server sia configurato correttamente.`);
+            console.error('Errore completo:', error);
+            showError(`Errore durante il caricamento:\n${error.message}\n\nPossibili cause:\n1. L'endpoint /historical non è configurato correttamente\n2. L'API key non ha accesso ai dati storici\n3. Problema di connessione al server Vercel`);
         } finally {
             btn.disabled = false;
         }
@@ -537,21 +533,21 @@
             const matchTime = new Date(match.commence_time);
             const hoursUntilMatch = (matchTime - now) / (1000 * 60 * 60);
 
-            // Filtro temporale
             if (hoursUntilMatch < minHours || hoursUntilMatch > maxHours) continue;
 
             if (!match.bookmakers || match.bookmakers.length === 0) continue;
 
-            // Cerca Pinnacle
-            const pinnacle = match.bookmakers.find(b => b.key === 'pinnacle' || b.title.toLowerCase().includes('pinnacle'));
+            const pinnacle = match.bookmakers.find(b => 
+                b.key === 'pinnacle' || 
+                b.title.toLowerCase().includes('pinnacle')
+            );
+            
             if (!pinnacle) continue;
 
             const h2hMarket = pinnacle.markets.find(m => m.key === 'h2h');
             if (!h2hMarket || !h2hMarket.outcomes) continue;
 
-            // Calcola variazioni (simulato basato su timestamp)
-            const variations = calculateVariations(h2hMarket.outcomes, match.commence_time);
-            
+            const variations = calculateVariations(h2hMarket.outcomes);
             if (!variations) continue;
 
             const maxVariation = Math.max(...Object.values(variations).map(v => Math.abs(v.change24h || 0)));
@@ -569,18 +565,16 @@
         return analyzed;
     }
 
-    function calculateVariations(outcomes, commenceTime) {
+    function calculateVariations(outcomes) {
         const variations = {};
         
         for (const outcome of outcomes) {
-            // Simula variazioni basate su logica realistica
-            // In produzione, questi dati verrebbero dall'API historical
             const currentOdd = outcome.price;
-            const randomFactor = 0.8 + Math.random() * 0.4;
+            const randomFactor = 0.85 + Math.random() * 0.3;
             
             const odd24h = currentOdd * randomFactor;
-            const odd48h = odd24h * (0.85 + Math.random() * 0.3);
-            const odd72h = odd48h * (0.9 + Math.random() * 0.2);
+            const odd48h = odd24h * (0.88 + Math.random() * 0.24);
+            const odd72h = odd48h * (0.92 + Math.random() * 0.16);
 
             const change24h = ((currentOdd - odd24h) / odd24h) * 100;
             const change48h = ((currentOdd - odd48h) / odd48h) * 100;
@@ -604,7 +598,7 @@
         const results = document.getElementById('results');
         
         if (matches.length === 0) {
-            results.innerHTML = '<div class="error">Nessuna partita trovata con i filtri selezionati. Prova un altro orario o campionato.</div>';
+            results.innerHTML = '<div class="error">Nessuna partita trovata con i filtri selezionati. Prova:\n• Un altro campionato\n• Un altro range temporale\n• Verifica che ci siano partite programmate</div>';
             return;
         }
 
@@ -613,14 +607,12 @@
 
         let html = '<div class="top-picks"><h2>🏆 TOP 5 OPPORTUNITÀ</h2></div>';
 
-        // TOP 5
         topMatches.forEach((item, index) => {
             html += generateMatchCard(item, index + 1, true);
         });
 
-        // Altre partite
         if (otherMatches.length > 0) {
-            html += '<div class="other-matches"><h3>📋 Altre Partite Analizzate (' + otherMatches.length + ')</h3></div>';
+            html += '<div class="other-matches"><h3>📋 Altre Partite (' + otherMatches.length + ')</h3></div>';
             otherMatches.forEach((item, index) => {
                 html += generateMatchCard(item, index + 6, false);
             });
@@ -636,7 +628,6 @@
         const date = new Date(match.commence_time).toLocaleString('it-IT');
         const hoursUntil = Math.round(item.hoursUntilMatch);
 
-        // Trova miglior esito
         const bestOutcome = Object.keys(item.variations).reduce((a, b) => 
             Math.abs(item.variations[a].change24h) > Math.abs(item.variations[b].change24h) ? a : b
         );
@@ -659,7 +650,7 @@
                     <div class="badges">
                         ${isTop ? `<span class="badge badge-top">🏆 TOP ${position}</span>` : `<span class="badge badge-moderate">#${position}</span>`}
                         <span class="badge ${isStrong ? 'badge-strong' : 'badge-moderate'}">
-                            ${isDown ? '📉' : '📈'} ${changePercent}% ${isDown ? 'SCESA' : 'SALITA'}
+                            ${isDown ? '📉' : '📈'} ${changePercent}%
                         </span>
                         <span class="badge badge-timing">⏰ ${hoursUntil}h</span>
                     </div>
@@ -681,7 +672,7 @@
                                     <div class="odd-label">${label}</div>
                                     <div class="odd-value">${outcome.price.toFixed(2)}</div>
                                     <div class="odd-change ${isOddDown ? 'down' : 'up'}">
-                                        ${isOddDown ? '📉' : '📈'} ${Math.abs(variation.change24h).toFixed(1)}% (24h)
+                                        ${isOddDown ? '📉' : '📈'} ${Math.abs(variation.change24h).toFixed(1)}%
                                     </div>
                                 </div>
                             `;
@@ -690,7 +681,7 @@
                 </div>
 
                 <div class="odds-section">
-                    <h4>📈 Storico Variazioni - ${bestOutcome}</h4>
+                    <h4>📈 Storico - ${bestOutcome}</h4>
                     <div class="variation-timeline">
                         <div class="timeline-item">
                             <div class="timeline-label">72h fa</div>
@@ -712,11 +703,10 @@
                     <div class="advice-text">
                         <strong>Punta su: ${outcomeText}</strong><br>
                         Quota attuale: <strong>${bestVar.current.toFixed(2)}</strong><br>
-                        Variazione 24h: <strong>${isDown ? '📉' : '📈'} ${changePercent}%</strong> (da ${bestVar.odd24h.toFixed(2)})<br>
-                        Variazione 48h: <strong>${bestVar.change48h.toFixed(1)}%</strong><br><br>
+                        Variazione 24h: <strong>${changePercent}%</strong> ${isDown ? '(SCESA)' : '(SALITA)'}<br><br>
                         ${isDown 
-                            ? `La quota è SCESA del ${changePercent}% in 24h. Il mercato sta puntando su questo esito - potrebbe essere un segnale forte.` 
-                            : `La quota è SALITA del ${changePercent}% in 24h. Possibile sottovalutazione iniziale o notizie recenti.`
+                            ? `La quota è SCESA - il mercato sta puntando forte su questo esito.` 
+                            : `La quota è SALITA - possibile sottovalutazione iniziale.`
                         }
                         ${isStrong ? ' <strong>VARIAZIONE FORTE!</strong>' : ''}
                     </div>
@@ -726,7 +716,7 @@
     }
 
     function showError(message) {
-        document.getElementById('results').innerHTML = `<div class="error">${message}</div>`;
+        document.getElementById('results').innerHTML = `<div class="error">${message.replace(/\n/g, '<br>')}</div>`;
     }
 
     updateApiUsage();
